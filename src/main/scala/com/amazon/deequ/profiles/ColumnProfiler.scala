@@ -216,7 +216,7 @@ object ColumnProfiler {
 
         // We compute exact histograms for all low-cardinality string columns, find those here
         val targetColumnsForHistograms = findTargetColumnsForHistograms(data.schema,
-          genericStatistics, lowCardinalityHistogramThreshold)
+          genericStatistics, lowCardinalityHistogramThreshold, restrictToColumns)
 
         // Find out, if we have values for those we can reuse
         val analyzerContextExistingValues =
@@ -398,7 +398,7 @@ object ColumnProfiler {
 
         // We compute exact histograms for all low-cardinality string columns, find those here
         val targetColumnsForHistograms = findTargetColumnsForHistograms(data.schema,
-          genericStatistics, lowCardinalityHistogramThreshold)
+          genericStatistics, lowCardinalityHistogramThreshold, restrictToColumns)
 
         // Find out, if we have values for those we can reuse
         val analyzerContextExistingValues =
@@ -848,13 +848,15 @@ object ColumnProfiler {
   private[this] def findTargetColumnsForHistograms(
       schema: StructType,
       genericStatistics: GenericColumnStatistics,
-      lowCardinalityHistogramThreshold: Long)
+      lowCardinalityHistogramThreshold: Long,
+      restrictToColumns: Option[Seq[String]] = None)
     : Seq[String] = {
 
     val validSparkDataTypesForHistograms: Set[SparkDataType] = Set(
       StringType, BooleanType, DoubleType, FloatType, IntegerType, LongType, ShortType
     )
     val originalStringNumericOrBooleanColumns = schema
+      .filter{ field => restrictToColumns.isEmpty || restrictToColumns.get.contains(field.name) }
       .filter { field => validSparkDataTypesForHistograms.contains(field.dataType) ||
         genericStatistics.typeOf(field.name) == Decimal }
       .map { field => field.name }
