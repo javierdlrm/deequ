@@ -18,7 +18,6 @@ package com.amazon.deequ.utils
 
 import com.amazon.deequ.analyzers.DataTypeInstances
 import com.amazon.deequ.profiles.NumericColumnProfile
-import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.types.{DoubleType, IntegerType, LongType, MapType, StringType, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 
