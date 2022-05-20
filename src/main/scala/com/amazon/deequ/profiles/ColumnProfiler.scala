@@ -18,6 +18,7 @@ package com.amazon.deequ.profiles
 
 import scala.util.Success
 import scala.collection.mutable.ListBuffer
+import scala.collection.immutable.ListMap
 import com.amazon.deequ.analyzers.DataTypeInstances._
 import com.amazon.deequ.analyzers._
 import com.amazon.deequ.analyzers.runners.AnalysisRunBuilder
@@ -53,6 +54,7 @@ private[deequ] case class GenericColumnStatistics(
     knownTypes: Map[String, DataTypeInstances.Value],
     typeDetectionHistograms: Map[String, Map[String, Long]],
     approximateNumDistincts: Map[String, Long],
+    exactNumDistincts: Map[String, Long],
     completenesses: Map[String, Double],
     distinctness: Map[String, Double],
     entropy: Map[String, Double],
@@ -252,7 +254,7 @@ object ColumnProfiler {
   /**
    * Profile a (potentially very large) dataset.
    *
-   * @param data                             data dataset as dataframe
+   * @param dataInp                             data dataset as dataframe
    * @param restrictToColumns                an contain a subset of columns to profile, otherwise
    *                                         all columns will be considered
    * @param printStatusUpdates
@@ -269,7 +271,7 @@ object ColumnProfiler {
    */
   // scalastyle:off argcount
   private[deequ] def profileOptimized(
-                              data: DataFrame,
+                              dataInp: DataFrame,
                               restrictToColumns: Option[Seq[String]] = None,
                               printStatusUpdates: Boolean = false,
                               lowCardinalityHistogramThreshold: Int = ColumnProfiler
@@ -290,15 +292,16 @@ object ColumnProfiler {
     // Ensure that all desired columns exist
     restrictToColumns.foreach { restrictToColumns =>
       restrictToColumns.foreach { columnName =>
-        require(data.schema.fieldNames.contains(columnName), s"Unable to find column $columnName")
+        require(dataInp.schema.fieldNames.contains(columnName), s"Unable to find column " +
+          s"$columnName")
       }
     }
 
     // Find columns we want to profile
-    val relevantColumns = getRelevantColumns(data.schema, restrictToColumns)
+    val relevantColumns = getRelevantColumns(dataInp.schema, restrictToColumns)
 
     // We assume that data types are predefined by the schema, and skip the data type detection
-    val predefinedTypes = data.schema.fields
+    val predefinedTypes = dataInp.schema.fields
       .filter { column => relevantColumns.contains(column.name) }
       .map { field =>
         val knownType = field.dataType match {
@@ -318,6 +321,10 @@ object ColumnProfiler {
 
     val numericColumnNames = relevantColumns
       .filter { name => Set(Integral, Fractional, Decimal).contains(predefinedTypes(name)) }
+
+    // replace NaNs with null in numeric columns
+    val na_replacement = numericColumnNames.map((_, "null")).toMap
+    val data = dataInp.na.fill(na_replacement)
 
     // First pass
     if (printStatusUpdates) {
@@ -356,7 +363,8 @@ object ColumnProfiler {
             (exactUniquenessCols.isDefined && exactUniquenessCols.get.contains(name)))
             && predefinedTypes(name) != Unknown) {
             // Add grouping analyzers.
-            analyzers ++= Seq(Uniqueness(name), Distinctness(name), Entropy(name))
+            analyzers ++= Seq(Uniqueness(name), Distinctness(name), Entropy(name),
+              CountDistinct(name))
           }
 
           analyzers
@@ -655,24 +663,29 @@ object ColumnProfiler {
         analyzer.column -> metric.value.get.toLong
       }
 
+    val exactNumDistincts = results.metricMap
+      .collect { case (analyzer: CountDistinct, metric: DoubleMetric) =>
+        analyzer.columns.head -> metric.value.get.toLong
+      }
+
     val completenesses = results.metricMap
       .collect { case (analyzer: Completeness, metric: DoubleMetric) =>
         analyzer.column -> metric.value.get
       }
 
     val entropy = results.metricMap
-      .collect { case (analyzer: Entropy, metric: DoubleMetric) =>
+      .collect { case (analyzer: Entropy, metric: DoubleMetric) if metric.value.isSuccess =>
         analyzer.column -> metric.value.get
       }
 
     val uniqueness = results.metricMap
-      .collect { case (analyzer: Uniqueness, metric: DoubleMetric) =>
+      .collect { case (analyzer: Uniqueness, metric: DoubleMetric) if metric.value.isSuccess =>
         // we only compute uniqueness for single columns
         analyzer.columns.head -> metric.value.get
       }
 
     val distinctness = results.metricMap
-      .collect { case (analyzer: Distinctness, metric: DoubleMetric) =>
+      .collect { case (analyzer: Distinctness, metric: DoubleMetric) if metric.value.isSuccess =>
         analyzer.columns.head -> metric.value.get
       }
 
@@ -698,7 +711,8 @@ object ColumnProfiler {
       .toMap
 
     GenericColumnStatistics(numRecords, inferredTypes, knownTypes, typeDetectionHistograms,
-      approximateNumDistincts, completenesses, distinctness, entropy, uniqueness, predefinedTypes)
+      approximateNumDistincts, exactNumDistincts, completenesses, distinctness, entropy,
+      uniqueness, predefinedTypes)
   }
 
 
@@ -988,6 +1002,7 @@ object ColumnProfiler {
         val entropy = genericStats.entropy.get(name)
         val uniqueness = genericStats.uniqueness.get(name)
         val approxNumDistinct = genericStats.approximateNumDistincts(name)
+        val exactNumDistinct = genericStats.exactNumDistincts.get(name)
         val dataType = genericStats.typeOf(name)
         val isDataTypeInferred = genericStats.inferredTypes.contains(name)
         val histogram = categoricalStats.histograms.get(name)
@@ -1004,6 +1019,7 @@ object ColumnProfiler {
               entropy,
               uniqueness,
               approxNumDistinct,
+              exactNumDistinct,
               dataType,
               isDataTypeInferred,
               typeCounts,
@@ -1039,6 +1055,7 @@ object ColumnProfiler {
               entropy,
               uniqueness,
               approxNumDistinct,
+              exactNumDistinct,
               dataType,
               isDataTypeInferred,
               typeCounts,
