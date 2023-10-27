@@ -433,6 +433,9 @@ trait FixtureSupport {
   def getFakeNumericColumnProfileWithMinMaxMeanAndStdDev(
     columnName: String,
     completeness: Double,
+    distinctness: Double,
+    entropy: Double,
+    uniqueness: Double,
     dataType: DataTypeInstances.Value,
     minimum: Double,
     maximum: Double,
@@ -443,6 +446,9 @@ trait FixtureSupport {
     NumericColumnProfile(
       column = columnName,
       completeness = completeness,
+      distinctness = distinctness,
+      entropy = entropy,
+      uniqueness = uniqueness,
       approximateNumDistinctValues = 1000,
       dataType = dataType,
       isDataTypeInferred = false,
@@ -454,7 +460,8 @@ trait FixtureSupport {
       minimum = Some(minimum),
       sum = Some(1000.879),
       stdDev = Some(1.023),
-      approxPercentiles = None
+      approxPercentiles = None,
+      correlation = None
     )
   }
 }
