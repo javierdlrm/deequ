@@ -486,7 +486,11 @@ trait FixtureSupport {
     NumericColumnProfile(
       column = columnName,
       completeness = completeness,
+      distinctness = Some(1.0),
+      entropy = Some(1.0),
+      uniqueness = Some(1.0),
       approximateNumDistinctValues = 1000,
+      exactNumDistinctValues = Some(1000L),
       dataType = dataType,
       isDataTypeInferred = false,
       typeCounts = Map[String, Long](),
@@ -497,7 +501,8 @@ trait FixtureSupport {
       minimum = Some(minimum),
       sum = Some(1000.879),
       stdDev = Some(1.023),
-      approxPercentiles = None
+      approxPercentiles = None,
+      correlation = None
     )
   }
 }

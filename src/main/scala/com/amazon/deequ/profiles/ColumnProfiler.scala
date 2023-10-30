@@ -390,6 +390,7 @@ object ColumnProfiler {
       firstPassResults,
       predefinedTypes)
 
+    val stringStatistics = extractStringStatistics(firstPassResults)
 
     val numericStatistics = if (correlation) {
       extractNumericStatistics(firstPassResults, correlationCalculatedColumnNames)
@@ -434,7 +435,7 @@ object ColumnProfiler {
       case _ => Map.empty[String, Distribution]
     }
 
-    createProfiles(relevantColumns, genericStatistics, numericStatistics,
+    createProfiles(relevantColumns, genericStatistics, stringStatistics, numericStatistics,
       CategoricalColumnStatistics(secondPassResults))
   }
 
@@ -1038,7 +1039,11 @@ object ColumnProfiler {
             StringColumnProfile(
               name,
               completeness,
+              distinctness,
+              entropy,
+              uniqueness,
               approxNumDistinct,
+              exactNumDistinct,
               dataType,
               isDataTypeInferred,
               typeCounts,

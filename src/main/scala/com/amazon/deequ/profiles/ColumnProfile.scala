@@ -54,7 +54,11 @@ case class StandardColumnProfile(
 case class StringColumnProfile(
     column: String,
     completeness: Double,
+    distinctness: Option[Double],
+    entropy: Option[Double],
+    uniqueness: Option[Double],
     approximateNumDistinctValues: Long,
+    exactNumDistinctValues: Option[Long],
     dataType: DataTypeInstances.Value,
     isDataTypeInferred: Boolean,
     typeCounts: Map[String, Long],
@@ -218,7 +222,7 @@ object ColumnProfiles {
 
               // increase precision for small bucket sizes
               val fp = if (kllSketch.buckets.nonEmpty && scala.math.abs(kllSketch.buckets.head
-                .highValue - kllSketch.buckets.head.lowValue) > 0.05) "%.2f" else "%f"
+                .highValue - kllSketch.buckets.head.lowValue) > 0.05) { "%.2f" } else { "%f" }
 
               kllSketch.buckets.foreach{bucket =>
                 val histogramEntry = new JsonObject()
